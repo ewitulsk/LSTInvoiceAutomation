@@ -1,5 +1,7 @@
 import openpyxl
 import datetime as dt
+import readchar
+import os
 
 class TimeRecord:
     date: dt.date
@@ -16,9 +18,9 @@ class TimeRecord:
         self.work_type = work_type
 
     def __str__(self) -> str:
-        return f"({self.date},{self.employee},{self.hours_worked},{self.rate},{self.work_type})"
+        return f"\n({self.date},{self.employee},{self.hours_worked},{self.rate},{self.work_type})"
     def __repr__(self) -> str:
-        return f"({self.date},{self.employee},{self.hours_worked},{self.rate},{self.work_type})"
+        return f"\n({self.date},{self.employee},{self.hours_worked},{self.rate},{self.work_type})"
 
 class MilesRecord:
     date: dt.date
@@ -26,10 +28,10 @@ class MilesRecord:
     miles_rate: float
 
     def __repr__(self) -> str:
-        return f"{self.date},{self.miles},{self.miles_rate}"
+        return f"\n({self.date},{self.miles},{self.miles_rate})"
 
     def __str__(self) -> str:
-        return f"{self.date},{self.miles},{self.miles_rate}"
+        return f"\n({self.date},{self.miles},{self.miles_rate})"
 
     def __init__(self,date,miles,miles_rate):
         self.date = date
@@ -47,10 +49,10 @@ class GPSRecord:
         self.gps_rate = gps_rate
     
     def __repr__(self) -> str:
-        return f"{self.date},{self.gps},{self.gps_rate}"
+        return f"\n({self.date},{self.gps},{self.gps_rate})"
     
     def __str__(self) -> str:
-        return f"{self.date},{self.gps},{self.gps_rate}"
+        return f"\n({self.date},{self.gps},{self.gps_rate})"
     
 class SokkiaRecord:
     amount: float
@@ -61,10 +63,10 @@ class SokkiaRecord:
         self.rate = rate
     
     def __repr__(self) -> str:
-        return f"{self.amount},{self.rate}"
+        return f"\n({self.amount},{self.rate})"
     
     def __str__(self) -> str:
-        return f"{self.amount},{self.rate}"
+        return f"\n({self.amount},{self.rate})"
 
 class MiscSuppliesRecord:
     rebar: float
@@ -91,10 +93,10 @@ class MiscSuppliesRecord:
         self.tpost_rate = tpost_rate
 
     def __str__(self) -> str:
-        return f"{self.rebar}: {self.rebar_rate}, {self.lsrm}: {self.lsrm_rate}, {self.lath}: {self.lath_rate}, {self.spikes}: {self.spikes_rate}, {self.tpost}: {self.tpost_rate}"
+        return f"Rebar: ({self.rebar}: {self.rebar_rate})\nLSRM: ({self.lsrm}: {self.lsrm_rate})\nLath: ({self.lath}: {self.lath_rate})\nSpikes: ({self.spikes}: {self.spikes_rate})\nTPost: ({self.tpost}: {self.tpost_rate})"
 
     def __repr__(self) -> str:
-        return f"{self.rebar}: {self.rebar_rate}, {self.lsrm}: {self.lsrm_rate}, {self.lath}: {self.lath_rate}, {self.spikes}: {self.spikes_rate}, {self.tpost}: {self.tpost_rate}"
+        return f"Rebar: ({self.rebar}: {self.rebar_rate})\nLSRM: ({self.lsrm}: {self.lsrm_rate})\nLath: ({self.lath}: {self.lath_rate})\nSpikes: ({self.spikes}: {self.spikes_rate})\nTPost: ({self.tpost}: {self.tpost_rate})"
 
 #Not really a daily record as each line has its own date.
 #This naming convention matches with the sheet
@@ -105,14 +107,16 @@ class DailyRecord:
     gps_records: [GPSRecord]
     sokkia_records: [SokkiaRecord]
     misc_record: MiscSuppliesRecord
+    opex: float
 
-    def __init__(self,job_name,time_records,miles_records,gps_records,sokkia_records,misc_record) -> None:
+    def __init__(self,job_name,time_records,miles_records,gps_records,sokkia_records,misc_record,opex=2.8) -> None:
         self.job_name = job_name
         self.time_records = time_records
         self.miles_records = miles_records
         self.gps_records = gps_records
         self.sokkia_records = sokkia_records
         self.misc_record = misc_record
+        self.opex = opex
 
     def __repr__(self) -> str:
         return f"{self.job_name}"
@@ -203,8 +207,8 @@ def get_section_title_cols(ws, section_start_row, section_end_row):
     return title_col_dict
 
 #Key words are words that are likely to indicate that tables start
-def find_table_start(ws, header_row_num, key_words, tolerance=.66):
-    for row in ws.iter_rows(min_row=header_row_num, max_col=ws.max_column, min_col=1):
+def find_table_start(ws, key_words, tolerance=.66):
+    for row in ws.iter_rows(min_row=1, max_col=ws.max_column, min_col=1):
         cell_vals = [cell.value for cell in row if cell.value != None]
         matched_keywords = 0
         for word in key_words:
@@ -215,8 +219,8 @@ def find_table_start(ws, header_row_num, key_words, tolerance=.66):
     return None
 
 
-def get_job_name(ws, header_row_num, key_words):
-    start = find_table_start(ws, header_row_num, key_words)
+def get_job_name(ws, key_words):
+    start = find_table_start(ws, key_words)
     row = ws[start]
     cell_vals = [cell.value for cell in row if cell.value != None]
     cell_vals_cpy = cell_vals.copy()
@@ -276,12 +280,12 @@ def read_county_line(row, title_col_dict):
     return time_record
 
 
-def read_county_record(ws, header_location):
-    job_name = get_job_name(ws, header_location, ["Name", "Hours worked", "Rate", "Total", "Type", "Date"])
+def read_county_record(ws):
+    job_name = get_job_name(ws, ["Name", "Hours worked", "Rate", "Total", "Type", "Date"])
 
     time_records = []
 
-    section_start = find_table_start(ws, header_location, ["Name", "Hours worked"])
+    section_start = find_table_start(ws, ["Name", "Hours worked"])
     if section_start == None:
         return None
     section_last_row =  get_last_section_row(ws, section_start)
@@ -323,9 +327,9 @@ def read_miles_line(row, title_col_dict):
     return miles_record
 
 
-def read_miles_record(ws, header_location):
+def read_miles_record(ws):
     miles_records = []
-    section_start = find_table_start(ws, header_location, ["Miles 2-1704"])
+    section_start = find_table_start(ws, ["Miles 2-1704"])
     if section_start == None:
         return None
     section_last_row =  get_last_section_row(ws, section_start)
@@ -369,9 +373,9 @@ def read_gps_line(row, title_col_dict):
     return gps_record
 
 
-def read_gps_record(ws, header_location):
+def read_gps_record(ws):
     gps_records = []
-    section_start = find_table_start(ws, header_location, ["GPS 2-2500"])
+    section_start = find_table_start(ws, ["GPS 2-2500"])
     if section_start == None:
         return None
     section_last_row =  get_last_section_row(ws, section_start)
@@ -404,9 +408,9 @@ def read_sokkia_line(row, title_col_dict):
     
     return SokkiaRecord(amount, rate)
 
-def read_sokkia_record(ws, header_location):
+def read_sokkia_record(ws):
     sokkia_records = []
-    section_start = find_table_start(ws, header_location, ["SOKKIA  2-2500"])
+    section_start = find_table_start(ws, ["SOKKIA  2-2500"])
     if section_start == None:
         return None
     section_end = get_last_section_row(ws, section_start)
@@ -438,8 +442,8 @@ def read_misc_line(row, title_col_dict, item):
     
     return amount, rate
 
-def read_misc_record(ws, header_location, item):
-    section_start = find_table_start(ws, header_location, [item])
+def read_misc_record(ws, item):
+    section_start = find_table_start(ws, [item])
     if section_start == None:
         return None
     title_col_dict = get_section_title_cols(ws, section_start, section_start+1)
@@ -451,25 +455,22 @@ def read_misc_record(ws, header_location, item):
 
 
 def read_sheet(ws):
-    locs = find_section_heading(ws)
-    heading1 = locs["Daily County Record"].row
-    heading2 = locs["Daily Supplies Record"].row
-    time_records_maybe = read_county_record(ws, heading1)
+    time_records_maybe = read_county_record(ws)
     if time_records_maybe != None:
         time_records, job_name = time_records_maybe
     else:
         time_records, job_name = None, None
     
-    miles_records = read_miles_record(ws, heading2)
-    gps_records = read_gps_record(ws, heading2)
-    sokkia_records = read_sokkia_record(ws, heading2)
+    miles_records = read_miles_record(ws)
+    gps_records = read_gps_record(ws)
+    sokkia_records = read_sokkia_record(ws)
 
 
-    rebar_record = read_misc_record(ws, heading2, "Rebar 3-0306")
-    lsrm_record = read_misc_record(ws, heading2, "LS/RM not AL")
-    spikes_record = read_misc_record(ws, heading2, "Spikes 3-0306")
-    lath_record = read_misc_record(ws, heading2, "Lath 3-0306")
-    tpost_record = read_misc_record(ws, heading2, "T-Post 3-0306")
+    rebar_record = read_misc_record(ws, "Rebar 3-0306")
+    lsrm_record = read_misc_record(ws, "LS/RM not AL")
+    spikes_record = read_misc_record(ws, "Spikes 3-0306")
+    lath_record = read_misc_record(ws, "Lath 3-0306")
+    tpost_record = read_misc_record(ws, "T-Post 3-0306")
     
     if rebar_record is not None:
         rebar_amount, rebar_rate = rebar_record
@@ -497,18 +498,12 @@ def read_sheet(ws):
     return DailyRecord(job_name, time_records, miles_records, gps_records, sokkia_records, misc)
 
 
-#Dictionary of sheet data frames
-file = "sheets/County Time and Supplies Record.xlsx"
-
-wb = openpyxl.load_workbook(file)
-
-
-for ws in wb.worksheets:
-    sheet = read_sheet(ws)
+def print_sheet(sheet):
     print(sheet)
 
     print("Time Records\n")
     print(sheet.time_records)
+    print(f"Op/Ex: {sheet.opex}")
     print("Miles Record\n")
     print(sheet.miles_records)
     print("GPS Record\n")
@@ -517,6 +512,96 @@ for ws in wb.worksheets:
     print(sheet.sokkia_records)
     print("Misc Records\n")
     print(sheet.misc_record)
+
+
+def sum_sheets(sheets):
+    total = 0
+
+def clear():
+    os.system('cls||clear')
+
+
+def display_sheets(sheets):
+    cur_sheet = 0
+    is_printed = False
+
+    while(True):
+        clear()
+        print_sheet(sheets[cur_sheet])
+        print(f"{cur_sheet+1}/{len(sheets)}")
+
+        key = readchar.readkey()
+
+        if key == readchar.key.RIGHT:
+            cur_sheet += 1
+        if key == readchar.key.LEFT:
+            cur_sheet -= 1
+        
+        if cur_sheet > len(sheets)-1:
+            cur_sheet = 0
+            is_printed = False
+        
+        if cur_sheet < 0:
+            cur_sheet = len(sheets)-1
+            is_printed = False
+            
+        
+
+
+def edit_op_ex():
+    clear()
+    print("Editing OP/EX")
+
+
+def setup_sheets():
+    #Dictionary of sheet data frames
+    file = "sheets/County Time and Supplies Record.xlsx"
+
+    wb = openpyxl.load_workbook(file)
+
+    sheets = []
+
+    for ws in wb.worksheets:
+        sheet = read_sheet(ws)
+        sheets.append(sheet)
+    
+    return file, sheets
+
+def intro_screen(file, sheets):
+    clear()
+    print("LST Invoice Automation")
+    print(f"Reading File: {file}")
+
+    print(f"View/Edit Op/Exp Rate: o")
+    print(f"View Spreadsheet Data: v")
+
+    key = readchar.readkey()
+
+    match key:
+        case "e":
+            edit_op_ex()
+        case "v":
+            display_sheets(sheets)
+
+def main():
+    file, sheets = setup_sheets()
+    intro_screen(file, sheets)
+
+    
+
+
+    
+
+
+if __name__ == "__main__":
+    main()
+    
+
+    
+
+
+
+
 
 
 
