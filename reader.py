@@ -9,6 +9,7 @@ class TimeRecord:
     hours_worked: float
     rate: float
     work_type: str
+    total: float
     
     def __init__(self,date,employee,hours_worked,rate,work_type):
         self.date = date
@@ -16,6 +17,13 @@ class TimeRecord:
         self.hours_worked = hours_worked
         self.rate = rate
         self.work_type = work_type
+
+    def calc_total(self):
+        self.total = self.hours_worked * self.rate
+        return self.total
+    
+    def line_str(self):
+        return f"{self.hours_worked}@${self.rate}"
 
     def __str__(self) -> str:
         return f"\n({self.date},{self.employee},{self.hours_worked},{self.rate},{self.work_type})"
@@ -26,6 +34,7 @@ class MilesRecord:
     date: dt.date
     miles: float
     miles_rate: float
+    total: float
 
     def __repr__(self) -> str:
         return f"\n({self.date},{self.miles},{self.miles_rate})"
@@ -38,10 +47,18 @@ class MilesRecord:
         self.miles = miles
         self.miles_rate = miles_rate
 
+    def calc_total(self):
+        self.total = self.miles * self.miles_rate
+        return self.total
+    
+    def line_str(self):
+        return f"{self.miles}@{self.miles_rate}"
+
 class GPSRecord:
     date: dt.date
     gps: float
     gps_rate: float
+    total: float
 
     def __init__(self,date,gps,gps_rate) -> None:
         self.date = date
@@ -54,73 +71,115 @@ class GPSRecord:
     def __str__(self) -> str:
         return f"\n({self.date},{self.gps},{self.gps_rate})"
     
-class SokkiaRecord:
+    def calc_total(self):
+        self.total = self.gps * self.gps_rate
+        return self.total
+
+    def line_str(self):
+        return f"{self.gps}@{self.gps_rate}"
+    
+class MiscRecord:
     amount: float
     rate: float
+    total: float
+    name: str
 
-    def __init__(self,amount,rate) -> None:
+    def __init__(self,name,amount,rate) -> None:
+        self.name = name
         self.amount = amount
         self.rate = rate
     
     def __repr__(self) -> str:
-        return f"\n({self.amount},{self.rate})"
+        return f"\n({self.name}: {self.amount},{self.rate})"
     
     def __str__(self) -> str:
-        return f"\n({self.amount},{self.rate})"
+        return f"\n({self.name}: {self.amount},{self.rate})"
 
-class MiscSuppliesRecord:
-    rebar: float
-    rebar_rate: float
-    lsrm: float
-    lsrm_rate: float
-    lath: float
-    lath_rate: float
-    spikes: float
-    spikes_rate: float
-    tpost: float
-    tpost_rate: float
+    def calc_total(self):
+        self.total = self.rate * self.amount
+        return self.total
+
+    def line_str(self):
+        return f"{self.amount}@{self.rate}"
     
-    def __init__(self,rebar,rebar_rate,lsrm,lsrm_rate,lath,lath_rate,spikes,spikes_rate,tpost,tpost_rate) -> None:
-        self.rebar = rebar
-        self.rebar_rate = rebar_rate
-        self.lsrm = lsrm
-        self.lsrm_rate = lsrm_rate
-        self.lath = lath
-        self.lath_rate = lath_rate
-        self.spikes = spikes
-        self.spikes_rate = spikes_rate
-        self.tpost = tpost
-        self.tpost_rate = tpost_rate
-
-    def __str__(self) -> str:
-        return f"Rebar: ({self.rebar}: {self.rebar_rate})\nLSRM: ({self.lsrm}: {self.lsrm_rate})\nLath: ({self.lath}: {self.lath_rate})\nSpikes: ({self.spikes}: {self.spikes_rate})\nTPost: ({self.tpost}: {self.tpost_rate})"
-
-    def __repr__(self) -> str:
-        return f"Rebar: ({self.rebar}: {self.rebar_rate})\nLSRM: ({self.lsrm}: {self.lsrm_rate})\nLath: ({self.lath}: {self.lath_rate})\nSpikes: ({self.spikes}: {self.spikes_rate})\nTPost: ({self.tpost}: {self.tpost_rate})"
 
 #Not really a daily record as each line has its own date.
 #This naming convention matches with the sheet
 class DailyRecord:
     job_name: str
-    time_records: [TimeRecord]
-    miles_records: [MilesRecord]
-    gps_records: [GPSRecord]
-    sokkia_records: [SokkiaRecord]
-    misc_record: MiscSuppliesRecord
-    opex: float
 
-    def __init__(self,job_name,time_records,miles_records,gps_records,sokkia_records,misc_record,opex=2.8) -> None:
+    time_records: [TimeRecord]
+    op_ex: float
+    time_total: float
+    op_ex_total: float
+    
+    miles_records: [MilesRecord]
+    miles_total: float
+
+    gps_records: [GPSRecord]
+    gps_total: float
+
+    misc_records: [MiscRecord]
+    misc_total: float
+
+    record_total: float
+    
+
+    def __init__(self,job_name,time_records,op_ex,miles_records,gps_records,misc_records) -> None:
         self.job_name = job_name
         self.time_records = time_records
         self.miles_records = miles_records
         self.gps_records = gps_records
-        self.sokkia_records = sokkia_records
-        self.misc_record = misc_record
-        self.opex = opex
+        self.misc_records = misc_records
+        self.op_ex = op_ex
 
     def __repr__(self) -> str:
         return f"{self.job_name}"
+    
+    def calc_totals(self):
+        
+        #Time Records
+        time_total = 0
+        op_ex_total = 0
+        if self.time_records is not None:
+            for time in self.time_records:
+                time_total += time.calc_total()
+            op_ex_total = time_total * self.op_ex
+            self.time_total = time_total
+            self.op_ex_total = op_ex_total
+        else:
+            self.time_total = 0
+            self.op_ex_total = 0
+        
+        #Miles Records
+        miles_total = 0
+        if self.miles_records is not None:
+            for miles in self.miles_records:
+                miles_total += miles.calc_total()
+            self.miles_total = miles_total
+        else:
+            self.miles_total = 0
 
+        #GPS Records
+        gps_total = 0
+        if self.gps_records is not None:
+            for gps in self.gps_records:
+                gps_total += gps.calc_total()
+            self.gps_total = gps_total
+        else:
+            self.gps_total = 0
+
+        #Misc Records
+        misc_total = 0
+        if self.misc_records is not None:
+            for misc in self.misc_records:
+                misc_total += misc.calc_total()
+            self.misc_total = misc_total
+        else:
+            self.misc_total = 0
+
+        self.record_total = time_total + op_ex_total + miles_total + gps_total + misc_total
+        return self.record_total
 
 class Heading:
     name: str
@@ -244,9 +303,6 @@ def read_county_line(row, title_col_dict):
     else:
         date = None
     
-    if date is None:
-        return None
-    
     if "Name" in title_col_dict.keys():
         employee_col = title_col_dict["Name"]
         employee_num = ord(employee_col.lower())-97
@@ -261,7 +317,6 @@ def read_county_line(row, title_col_dict):
     else:
         hours_worked = None
 
-    
     if "Rate" in title_col_dict.keys():
         rate_col = title_col_dict["Rate"]
         rate_num = ord(rate_col.lower())-97
@@ -276,13 +331,16 @@ def read_county_line(row, title_col_dict):
     else:
         work_type = None
     
+    if hours_worked is None or rate is None:
+        return None
+    
     time_record = TimeRecord(date, employee, hours_worked, rate, work_type)
     return time_record
 
 
 def read_county_record(ws):
     job_name = get_job_name(ws, ["Name", "Hours worked", "Rate", "Total", "Type", "Date"])
-
+        
     time_records = []
 
     section_start = find_table_start(ws, ["Name", "Hours worked"])
@@ -306,9 +364,6 @@ def read_miles_line(row, title_col_dict):
     else:
         date = None
     
-    if date is None:
-        return None
-    
     if "Miles 2-1704" in title_col_dict.keys():
         miles_col = title_col_dict["Miles 2-1704"]
         miles_num = ord(miles_col.lower())-97
@@ -322,6 +377,9 @@ def read_miles_line(row, title_col_dict):
         rate = row[rate_num].value
     else:
         rate = None
+    
+    if miles is None or rate is None:
+        return None
     
     miles_record = MilesRecord(date, miles, rate)
     return miles_record
@@ -350,10 +408,6 @@ def read_gps_line(row, title_col_dict):
     else:
         date = None
     
-    if date is None:
-        return None
-    
-    
     if "GPS 2-2500" in title_col_dict.keys():
         gps_col = title_col_dict["GPS 2-2500"]
         gps_num = ord(gps_col.lower())-97
@@ -368,6 +422,9 @@ def read_gps_line(row, title_col_dict):
         rate = row[rate_num].value
     else:
         rate = None
+
+    if gps is None or rate is None:
+        return None
     
     gps_record = GPSRecord(date, gps, rate)
     return gps_record
@@ -387,41 +444,6 @@ def read_gps_record(ws):
     return gps_records
 
 
-def read_sokkia_line(row, title_col_dict):
-    if "SOKKIA  2-2500" in title_col_dict.keys():
-        amount_col = title_col_dict["SOKKIA  2-2500"]
-        amount_num = ord(amount_col.lower())-97
-        amount = row[amount_num].value
-    else:
-        amount = None
-    
-    if amount is None:
-        return None
-    
-    
-    if "Rate" in title_col_dict.keys():
-        rate_col = title_col_dict["Rate"]
-        rate_num = ord(rate_col.lower())-97
-        rate = row[rate_num].value
-    else:
-        rate = None
-    
-    return SokkiaRecord(amount, rate)
-
-def read_sokkia_record(ws):
-    sokkia_records = []
-    section_start = find_table_start(ws, ["SOKKIA  2-2500"])
-    if section_start == None:
-        return None
-    section_end = get_last_section_row(ws, section_start)
-    title_col_dict = get_section_title_cols(ws, section_start, section_end)
-    for row in ws.iter_rows(min_row=section_start+1, max_col=ws.max_column, max_row=section_end):
-        sokkia_record = read_sokkia_line(row, title_col_dict)
-        if sokkia_record != None:
-            sokkia_records.append(sokkia_record)
-    return sokkia_records
-
-
 def read_misc_line(row, title_col_dict, item):
     if item in title_col_dict.keys():
         amount_col = title_col_dict[item]
@@ -430,9 +452,6 @@ def read_misc_line(row, title_col_dict, item):
     else:
         amount = None
     
-    if amount is None:
-        return None
-    
     if "Rate" in title_col_dict.keys():
         rate_col = title_col_dict["Rate"]
         rate_num = ord(rate_col.lower())-97
@@ -440,7 +459,11 @@ def read_misc_line(row, title_col_dict, item):
     else:
         rate = None
     
-    return amount, rate
+    if amount is None or rate is None:
+        return None
+    
+    return MiscRecord(item, amount, rate)
+
 
 def read_misc_record(ws, item):
     section_start = find_table_start(ws, [item])
@@ -451,10 +474,21 @@ def read_misc_record(ws, item):
     return read_misc_line(row, title_col_dict, item)
 
 
-
+def read_op_ex(ws):
+    opex_line = find_table_start(ws, ["Op/Exp"])
+    row = ws[opex_line]
+    for cell in row:
+        if cell.value is not None:
+            try:
+                return float(cell.value)
+            except ValueError:
+                continue
+    return None
 
 
 def read_sheet(ws):
+    op_ex = read_op_ex(ws)
+
     time_records_maybe = read_county_record(ws)
     if time_records_maybe != None:
         time_records, job_name = time_records_maybe
@@ -463,59 +497,39 @@ def read_sheet(ws):
     
     miles_records = read_miles_record(ws)
     gps_records = read_gps_record(ws)
-    sokkia_records = read_sokkia_record(ws)
 
+    misc_record_names = ["SOKKIA  2-2500","Rebar 3-0306","LS/RM not AL","Spikes 3-0306","Lath 3-0306","T-Post 3-0306","RM/LS Caps 3-0306"]
+    misc_records = []
+    for item in misc_record_names:
+        misc = read_misc_record(ws, item)
+        if misc is not None:
+            misc_records.append(misc)
 
-    rebar_record = read_misc_record(ws, "Rebar 3-0306")
-    lsrm_record = read_misc_record(ws, "LS/RM not AL")
-    spikes_record = read_misc_record(ws, "Spikes 3-0306")
-    lath_record = read_misc_record(ws, "Lath 3-0306")
-    tpost_record = read_misc_record(ws, "T-Post 3-0306")
-    
-    if rebar_record is not None:
-        rebar_amount, rebar_rate = rebar_record
-    else:
-        rebar_amount, rebar_rate = None, None
-    if lsrm_record is not None:
-        lsrm_amount, lsrm_rate = lsrm_record
-    else:
-        lsrm_amount, lsrm_rate = None, None
-    if spikes_record is not None:
-        spikes_amount, spikes_rate = spikes_record
-    else:
-        spikes_amount, spikes_rate = None, None
-    if lath_record is not None:
-        lath_amount, lath_rate = lath_record
-    else:
-        lath_amount, lath_rate = None, None
-    if tpost_record is not None:
-        tpost_amount, tpost_rate = tpost_record
-    else:
-        tpost_amount, tpost_rate = None, None
+    daily_record = DailyRecord(job_name, time_records, op_ex, miles_records, gps_records, misc_records)
+    daily_record.calc_totals()
 
-    misc = MiscSuppliesRecord(rebar_amount, rebar_rate, lsrm_amount, lsrm_rate, lath_amount, lath_rate, spikes_amount, spikes_rate, tpost_amount, tpost_rate)
-
-    return DailyRecord(job_name, time_records, miles_records, gps_records, sokkia_records, misc)
+    return daily_record
 
 
 def print_sheet(sheet):
     print(sheet)
 
-    print("Time Records\n")
+    print("Time Records")
     print(sheet.time_records)
-    print(f"Op/Ex: {sheet.opex}")
-    print("Miles Record\n")
+    print(f"Op/Ex Mult: {sheet.op_ex}")
+    print(f"Op Total: {sheet.op_ex_total}")
+    print(f"Time Total: {sheet.time_total}")
+    print("\nMiles Record")
     print(sheet.miles_records)
-    print("GPS Record\n")
+    print(f"Total: {sheet.miles_total}")
+    print("\nGPS Record")
     print(sheet.gps_records)
-    print("SOKKIA Record\n")
-    print(sheet.sokkia_records)
-    print("Misc Records\n")
-    print(sheet.misc_record)
+    print(f"Total: {sheet.gps_total}")
+    print("\nMisc Records")
+    print(sheet.misc_records)
+    print(f"Total: {sheet.misc_total}")
+    print(f"\nSheet Total: {sheet.record_total}")
 
-
-def sum_sheets(sheets):
-    total = 0
 
 def clear():
     os.system('cls||clear')
@@ -544,13 +558,6 @@ def display_sheets(sheets):
         if cur_sheet < 0:
             cur_sheet = len(sheets)-1
             is_printed = False
-            
-        
-
-
-def edit_op_ex():
-    clear()
-    print("Editing OP/EX")
 
 
 def setup_sheets():
@@ -572,21 +579,24 @@ def intro_screen(file, sheets):
     print("LST Invoice Automation")
     print(f"Reading File: {file}")
 
-    print(f"View/Edit Op/Exp Rate: o")
     print(f"View Spreadsheet Data: v")
+    print(f"Export To Spreadsheet: e")
 
     key = readchar.readkey()
 
     match key:
-        case "e":
-            edit_op_ex()
         case "v":
             display_sheets(sheets)
+        case "e":
+            export_sheets_to_excel(sheets)
+
+def export_sheets_to_excel(sheets):
+    pass
+
 
 def main():
     file, sheets = setup_sheets()
     intro_screen(file, sheets)
-
     
 
 
