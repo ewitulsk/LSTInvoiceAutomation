@@ -72,19 +72,27 @@ class DailyRecord:
     sokkia_records: [Record]
     sokkia_total: float
 
-    misc_records: [Record]
-    misc_total: float
+    monuments_records: [Record]
+    monuments_total: float
+
+    office_supply_records: [Record]
+    office_supply_total: float
+
+    dues_records: [Record]
+    dues_total: float
 
     record_total: float
     
 
-    def __init__(self,job_name,time_records,op_ex,miles_records,gps_records,sokkia_records,misc_records) -> None:
+    def __init__(self,job_name,time_records,op_ex,miles_records,gps_records,sokkia_records,monuments_records,office_supply_records,dues_records) -> None:
         self.job_name = job_name
         self.time_records = time_records
         self.miles_records = miles_records
         self.gps_records = gps_records
         self.sokkia_records = sokkia_records
-        self.misc_records = misc_records
+        self.monuments_records = monuments_records
+        self.office_supply_records = office_supply_records
+        self.dues_records = dues_records
         self.op_ex = op_ex
 
     def __repr__(self) -> str:
@@ -133,16 +141,34 @@ class DailyRecord:
             self.sokkia_total = 0
 
 
-        #Misc Records
-        misc_total = 0
-        if self.misc_records is not None:
-            for misc in self.misc_records:
-                misc_total += misc.calc_total()
-            self.misc_total = misc_total
+        #Monuments Records
+        monuments_total = 0
+        if self.monuments_records is not None:
+            for monuments in self.monuments_records:
+                monuments_total += monuments.calc_total()
+            self.monuments_total = monuments_total
         else:
-            self.misc_total = 0
+            self.monuments_total = 0
 
-        self.record_total = time_total + op_ex_total + miles_total + gps_total + misc_total
+        #Office Supply Records
+        office_total = 0
+        if self.office_supply_records is not None:
+            for office in self.office_supply_records:
+                office_total += office.calc_total()
+            self.office_supply_total = office_total
+        else:
+            self.office_supply_total = 0
+
+        #Dues Records
+        dues_total = 0
+        if self.dues_records is not None:
+            for dues in self.dues_records:
+                dues_total += dues.calc_total()
+            self.dues_total = dues_total
+        else:
+            self.dues_total = 0
+
+        self.record_total = time_total + op_ex_total + miles_total + gps_total + monuments_total
         return self.record_total
     
     def concat_line_strs(self, records):
@@ -168,8 +194,24 @@ class DailyRecord:
     def miles_line_strs(self):
         return self.concat_line_strs(self.miles_records)
     
-    def gps_line_strs(self):
-        return self.concat_line_strs(self.gps_records)
+    def machine_line_strs(self):
+        records = []
+        if self.gps_records is not None:
+            for r in self.gps_records:
+                records.append(r)
+        if self.sokkia_records is not None:
+            for r in self.sokkia_records:
+                records.append(r)
+        return self.concat_line_strs(records)
+
+    def monuments_line_strs(self):
+        return self.concat_line_strs(self.monuments_records)
+    
+    def office_supply_line_strs(self):
+        return self.concat_line_strs(self.office_supply_records)
+
+    def dues_line_strs(self):
+        return self.concat_line_strs(self.dues_records)
 
 
 def cell_arr_is_empty(cell_arr):
@@ -427,11 +469,14 @@ def read_sheet(ws):
     record_names = ["Rebar 3-0306","LS/RM not AL","Spikes 3-0306","Lath 3-0306","T-Post 3-0306","RM/LS Caps 3-0306"]
     records = []
     for item in record_names:
-        misc = read_record(ws, item)
-        if misc is not None:
-            records.append(misc)
+        monuments = read_record(ws, item)
+        if monuments is not None:
+            records.append(monuments)
+    
+    office_supply_records = read_record_table(ws, "Office Supplies 3-0101", {"amount":"Office Supplies 3-0101","rate":"Rate"})
+    dues_records = read_record_table(ws, "Dues/Sub/Reg 2-1751", {"amount":"Dues/Sub/Reg 2-1751","rate":"Rate"})
 
-    daily_record = DailyRecord(job_name, time_records, op_ex, miles_records, gps_records, sokkia_records, records)
+    daily_record = DailyRecord(job_name, time_records, op_ex, miles_records, gps_records, sokkia_records, records, office_supply_records, dues_records)
     daily_record.calc_totals()
 
     return daily_record
@@ -454,9 +499,15 @@ def print_sheet(sheet):
     print("\nSokkia Record")
     print(sheet.sokkia_records)
     print(f"Total: {sheet.sokkia_total}")
-    print("\nMisc Records")
-    print(sheet.misc_records)
-    print(f"Total: {sheet.misc_total}")
+    print("\Monuments Records")
+    print(sheet.monuments_records)
+    print(f"Total: {sheet.monuments_total}")
+    print("\Office Supply Records")
+    print(sheet.office_supply_records)
+    print(f"Total: {sheet.office_supply_total}")
+    print("\Dues Records")
+    print(sheet.dues_records)
+    print(f"Total: {sheet.dues_total}")
     print(f"\nSheet Total: {sheet.record_total}")
 
 
@@ -568,42 +619,94 @@ def export_sheets_to_excel(sheets, output_dir):
         time_line_str = sheet.time_line_strs()
         if len(time_line_str) > 0:
             cell = output_sheet.cell(row=row_i, column=1)  
-            cell.value = "Time:"
-            cell = output_sheet.cell(row=row_i, column=2)      
+            cell.value = "1-0202"
+            cell = output_sheet.cell(row=row_i, column=2)  
+            cell.value = "SALARY CONTRACT HOURLY"
+            cell = output_sheet.cell(row=row_i, column=3)      
             cell.value = time_line_str
+            cell = output_sheet.cell(row=row_i, column=4)      
+            cell.value = f'${"{:.2f}".format(sheet.time_total)}'
             row_i += 1
 
         #Miles
         miles_line_str = sheet.miles_line_strs()
         if len(miles_line_str) > 0:
             cell = output_sheet.cell(row=row_i, column=1)  
-            cell.value = "Miles:"
-            cell = output_sheet.cell(row=row_i, column=2)      
+            cell.value = "2-1704"
+            cell = output_sheet.cell(row=row_i, column=2)  
+            cell.value = "MILEAGE ALLOWANCE"
+            cell = output_sheet.cell(row=row_i, column=3)      
             cell.value = miles_line_str
+            cell = output_sheet.cell(row=row_i, column=4)      
+            cell.value = f'${"{:.2f}".format(sheet.miles_total)}'
             row_i += 1
 
-        #GPS
-        gps_line_str = sheet.gps_line_strs()
-        if len(gps_line_str) > 0:
+        #Dues, Subscriptions, Regis, Training
+        dues_line_str = sheet.dues_line_strs()
+        if len(dues_line_str) > 0:
             cell = output_sheet.cell(row=row_i, column=1)  
-            cell.value = "GPS:"
-            cell = output_sheet.cell(row=row_i, column=2)      
-            cell.value = gps_line_str
+            cell.value = "2-1751"
+            cell = output_sheet.cell(row=row_i, column=2)  
+            cell.value = "DUES, SUBSCRIPTION, REGIS, TRAINING"
+            cell = output_sheet.cell(row=row_i, column=3)      
+            cell.value = dues_line_str
+            cell = output_sheet.cell(row=row_i, column=4)      
+            cell.value = f'${"{:.2f}".format(sheet.dues_total)}'
             row_i += 1
 
-        #Misc
-        for misc in sheet.misc_records:
-            line_str = misc.line_str()
-            if len(line_str) > 0:
-                cell = output_sheet.cell(row=row_i, column=1)  
-                cell.value = misc.name
-                cell = output_sheet.cell(row=row_i, column=2)      
-                cell.value = line_str
-                row_i += 1
+        #Machine Hire (GPS & Sokkia)
+        machine_line_str = sheet.machine_line_strs()
+        if len(machine_line_str) > 0:
+            cell = output_sheet.cell(row=row_i, column=1)  
+            cell.value = "2-2500"
+            cell = output_sheet.cell(row=row_i, column=2)  
+            cell.value = "CONTRACTUAL SERVICE- MACHINE HIRE"
+            cell = output_sheet.cell(row=row_i, column=3)      
+            cell.value = machine_line_str
+            cell = output_sheet.cell(row=row_i, column=4)      
+            cell.value = f'${"{:.2f}".format(sheet.gps_total + sheet.sokkia_total)}'
+            row_i += 1
+
+        #Overhead/Operating Expenses
+        if sheet.op_ex_total > 0:
+            cell = output_sheet.cell(row=row_i, column=1)  
+            cell.value = "2-9900"
+            cell = output_sheet.cell(row=row_i, column=2)  
+            cell.value = "MISC OPERATING EXP/OVERHEAD COSTS"
+            cell = output_sheet.cell(row=row_i, column=3)      
+            cell.value = f"{sheet.time_total}@{sheet.op_ex}"
+            cell = output_sheet.cell(row=row_i, column=4)      
+            cell.value = f'${"{:.2f}".format(sheet.op_ex_total)}'
+            row_i += 1
+
+        #Office Supplies
+        office_supply_line_str = sheet.office_supply_line_strs()
+        if len(office_supply_line_str) > 0:
+            cell = output_sheet.cell(row=row_i, column=1)  
+            cell.value = "3-0101"
+            cell = output_sheet.cell(row=row_i, column=2)  
+            cell.value = "OFFICE SUPPLIES"
+            cell = output_sheet.cell(row=row_i, column=3)      
+            cell.value = office_supply_line_str
+            cell = output_sheet.cell(row=row_i, column=4)      
+            cell.value = f'${"{:.2f}".format(sheet.office_supply_total)}'
+            row_i += 1
+
+        #Survey Monuments
+        monuments_line_str = sheet.monuments_line_strs()
+        if len(monuments_line_str) > 0:
+            cell = output_sheet.cell(row=row_i, column=1)  
+            cell.value = "3-0306"
+            cell = output_sheet.cell(row=row_i, column=2)  
+            cell.value = "SURVEY MONUMENTS"
+            cell = output_sheet.cell(row=row_i, column=3)      
+            cell.value = monuments_line_str
+            cell = output_sheet.cell(row=row_i, column=4)      
+            cell.value = f'${"{:.2f}".format(sheet.monuments_total)}'
+            row_i += 1
 
         #Whitespace
         row_i += 1
-
 
     wb.save(filepath)
 
@@ -637,12 +740,12 @@ def main():
             print(f"Exit:                  ESC ")
 
         key = readchar.readkey()
-
+        
         match key:
             case "v":
                 display_sheets(sheets)
             case "e":
-                export_sheets_to_excel(sheets)
+                export_sheets_to_excel(sheets, cfg["output_dir"])
             case "s":
                 file = ask_for_file()
                 cfg["filepath"] = file
