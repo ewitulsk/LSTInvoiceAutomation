@@ -50,76 +50,6 @@ class TimeRecord(Record):
         return f"\n({self.date},{self.employee},{self.amount},{self.rate},{self.work_type})"
 
 
-class MilesRecord:
-    date: dt.date
-    amount: float
-    rate: float
-    total: float
-
-    def __repr__(self) -> str:
-        return f"\n({self.date},{self.amount},{self.rate})"
-
-    def __str__(self) -> str:
-        return f"\n({self.date},{self.amount},{self.rate})"
-
-    def __init__(self,date,amount,rate):
-        self.date = date
-        self.amount = amount
-        self.rate = rate
-
-    def calc_total(self):
-        self.total = self.amount * self.rate
-        return self.total
-    
-
-class GPSRecord:
-    date: dt.date
-    amount: float
-    rate: float
-    total: float
-
-    def __init__(self,date,amount,rate) -> None:
-        self.date = date
-        self.amount = amount
-        self.rate = rate
-    
-    def __repr__(self) -> str:
-        return f"\n({self.date},{self.amount},{self.rate})"
-    
-    def __str__(self) -> str:
-        return f"\n({self.date},{self.amount},{self.rate})"
-    
-    def calc_total(self):
-        self.total = self.amount * self.rate
-        return self.total
-
-    
-class MiscRecord:
-    date: dt.date
-    amount: float
-    rate: float
-    total: float
-    name: str
-
-    def __init__(self,name,amount,rate) -> None:
-        self.name = name
-        self.amount = amount
-        self.rate = rate
-    
-    def __repr__(self) -> str:
-        return f"\n({self.name}: {self.amount},{self.rate})"
-    
-    def __str__(self) -> str:
-        return f"\n({self.name}: {self.amount},{self.rate})"
-
-    def calc_total(self):
-        self.total = self.rate * self.amount
-        return self.total
-
-    def line_str(self):
-        return f"{self.amount}@{self.rate};"
-    
-
 #Not really a daily record as each line has its own date.
 #This naming convention matches with the sheet
 class DailyRecord:
@@ -130,13 +60,13 @@ class DailyRecord:
     time_total: float
     op_ex_total: float
     
-    miles_records: [MilesRecord]
+    miles_records: [Record]
     miles_total: float
 
-    gps_records: [GPSRecord]
+    gps_records: [Record]
     gps_total: float
 
-    misc_records: [MiscRecord]
+    misc_records: [Record]
     misc_total: float
 
     record_total: float
@@ -429,7 +359,7 @@ def read_miles_line(row, title_col_dict):
     if miles is None or rate is None:
         return None
     
-    miles_record = MilesRecord(date, miles, rate)
+    miles_record = Record(date, "miles", miles, rate)
     return miles_record
 
 
@@ -474,7 +404,7 @@ def read_gps_line(row, title_col_dict):
     if gps is None or rate is None:
         return None
     
-    gps_record = GPSRecord(date, gps, rate)
+    gps_record = Record(date, "gps", gps, rate)
     return gps_record
 
 
@@ -510,7 +440,7 @@ def read_misc_line(row, title_col_dict, item):
     if amount is None or rate is None:
         return None
     
-    return MiscRecord(item, amount, rate)
+    return Record(None, item, amount, rate)
 
 
 def read_misc_record(ws, item):
