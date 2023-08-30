@@ -6,6 +6,7 @@ import stat
 import tkinter as tk
 from tkinter import filedialog
 import json
+from pypdf import PdfWriter
 
 class Record:
     date: dt.date
@@ -711,6 +712,14 @@ def export_sheets_to_excel(sheets, output_dir):
     wb.save(filepath)
 
 
+def export_to_pdf(sheets, output_dir):
+    pdf_writer = PdfWriter()
+    pdf_writer.add_blank_page(width=8.5*72, height=11*72)
+
+    output_path = os.path.join(output_dir, "paper.pdf")
+    pdf_writer.write(output_path)
+
+
 def ask_for_file():
     return filedialog.askopenfilename()
 
@@ -736,7 +745,7 @@ def main():
             print("")
             print(f"Select New Spreadsheet: s")
             print(f"View Spreadsheet Data:  v")
-            print(f"Export To Spreadsheet:  e")
+            print(f"Export               :  e")
             print(f"Exit:                  ESC ")
 
         key = readchar.readkey()
@@ -745,7 +754,9 @@ def main():
             case "v":
                 display_sheets(sheets)
             case "e":
-                export_sheets_to_excel(sheets, cfg["output_dir"])
+                output_dir = cfg["output_dir"]
+                # export_sheets_to_excel(sheets, output_dir)
+                export_to_pdf(sheets, output_dir)
             case "s":
                 file = ask_for_file()
                 cfg["filepath"] = file
