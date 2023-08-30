@@ -69,17 +69,21 @@ class DailyRecord:
     gps_records: [Record]
     gps_total: float
 
+    sokkia_records: [Record]
+    sokkia_total: float
+
     misc_records: [Record]
     misc_total: float
 
     record_total: float
     
 
-    def __init__(self,job_name,time_records,op_ex,miles_records,gps_records,misc_records) -> None:
+    def __init__(self,job_name,time_records,op_ex,miles_records,gps_records,sokkia_records,misc_records) -> None:
         self.job_name = job_name
         self.time_records = time_records
         self.miles_records = miles_records
         self.gps_records = gps_records
+        self.sokkia_records = sokkia_records
         self.misc_records = misc_records
         self.op_ex = op_ex
 
@@ -119,6 +123,16 @@ class DailyRecord:
         else:
             self.gps_total = 0
 
+        #GPS Records
+        sokkia_total = 0
+        if self.sokkia_records is not None:
+            for record in self.sokkia_records:
+                sokkia_total += record.calc_total()
+            self.sokkia_total = sokkia_total
+        else:
+            self.sokkia_total = 0
+
+
         #Misc Records
         misc_total = 0
         if self.misc_records is not None:
@@ -156,39 +170,6 @@ class DailyRecord:
     
     def gps_line_strs(self):
         return self.concat_line_strs(self.gps_records)
-    
-    
-
-    
-
-
-class Heading:
-    name: str
-    row: int
-    col: str
-    def loc(self): 
-        return f"{self.col, self.row}"
-    
-    def __str__(self) -> str:
-        return f"{self.name} ({self.col}{self.row})"
-    
-    def __repr__(self) -> str:
-        return f"{self.name} ({self.col}{self.row})"
-    
-    def __init__(self,name,col,row):
-        self.name = name
-        self.col = col
-        self.row = row
-
-
-def find_section_heading(ws):
-    locations = dict()
-    valid_headings = ["Daily County Record", "Daily Supplies Record"]
-    for row in ws.iter_rows(min_row=1, max_col=ws.max_column, max_row=ws.max_row):
-        for cell in row:
-            if cell.value in valid_headings:
-                locations[cell.value] = Heading(cell.value, cell.column_letter, cell.row)
-    return locations
 
 
 def cell_arr_is_empty(cell_arr):
@@ -240,10 +221,10 @@ def get_section_title_cols(ws, section_start_row, section_end_row):
             empty_names.append(cell.column_letter)
         else:
             title_col_dict[cell.value] = cell.column_letter
-    if "Date" not in title_col_dict.keys() and "date" not in title_col_dict.keys():
-        date_col = find_time_record_date_col(ws, empty_names, section_start_row, section_end_row)
-        title_col_dict["Date"] = date_col
-        title_col_dict["date"] = date_col
+    # if "Date" not in title_col_dict.keys() and "date" not in title_col_dict.keys():
+    #     date_col = find_time_record_date_col(ws, empty_names, section_start_row, section_end_row)
+    #     title_col_dict["Date"] = date_col
+    #     title_col_dict["date"] = date_col
     return title_col_dict
 
 #Key words are words that are likely to indicate that tables start
@@ -337,95 +318,58 @@ def read_county_record(ws):
     return time_records, job_name
     
 
-def read_miles_line(row, title_col_dict):  
-    if "Date" in title_col_dict.keys():
-        date_col = title_col_dict["Date"]
-        date_num = ord(date_col.lower())-97
-        date = row[date_num].value
-    else:
-        date = None
-    
-    if "Miles 2-1704" in title_col_dict.keys():
-        miles_col = title_col_dict["Miles 2-1704"]
-        miles_num = ord(miles_col.lower())-97
-        miles = row[miles_num].value
-    else:
-        miles = None
+#
+#alias_dict example
+#{'amount'='GPS 2-5000', 'actual'='wierd'}
+#
+#
+def read_table_record_line(row, title_col_dict, name, alias_dict):
+    data_dict = dict()
+    for word in title_col_dict.keys():
+        if word in title_col_dict.keys():
+            col = title_col_dict[word]
+            num = ord(col.lower())-97
+            data = row[num].value
+        else:
+            data = None
+        data_dict[word] = data
 
-    if "Rate" in title_col_dict.keys():
-        rate_col = title_col_dict["Rate"]
-        rate_num = ord(rate_col.lower())-97
-        rate = row[rate_num].value
-    else:
-        rate = None
+    for key in alias_dict.keys():
+        data_key = alias_dict[key]
+        if key not in data_dict.keys():
+            data_dict[key] = data_dict[data_key]
+        
+    if "amount" not in data_dict.keys():
+        data_dict["amount"] = None
+    if "rate" not in data_dict.keys():
+        data_dict["rate"] = None
+    if "date" not in data_dict.keys():
+        data_dict["date"] = None
     
-    if miles is None or rate is None:
+    date = data_dict["date"]
+    amount = data_dict["amount"]
+    rate = data_dict["rate"]
+    if amount is None or rate is None:
         return None
     
-    miles_record = Record(date, "miles", miles, rate)
-    return miles_record
+    return Record(date, name, amount, rate)
 
 
-def read_miles_record(ws):
-    miles_records = []
-    section_start = find_table_start(ws, ["Miles 2-1704"])
+def read_record_table(ws, section_name, alias_dict):
+    records = []
+    section_start = find_table_start(ws, [section_name])
     if section_start == None:
         return None
     section_last_row =  get_last_section_row(ws, section_start)
     title_col_dict = get_section_title_cols(ws, section_start, section_last_row)
     for row in ws.iter_rows(min_row=section_start+1, max_col=ws.max_column, max_row=section_last_row):
-        miles = read_miles_line(row, title_col_dict)
-        if miles != None:
-            miles_records.append(miles)
-    return miles_records
+        record = read_table_record_line(row, title_col_dict, section_name, alias_dict)
+        if record != None:
+            records.append(record)
+    return records
 
 
-def read_gps_line(row, title_col_dict):
-    
-    if "Date" in title_col_dict.keys():
-        date_col = title_col_dict["Date"]
-        date_num = ord(date_col.lower())-97
-        date = row[date_num].value
-    else:
-        date = None
-    
-    if "GPS 2-2500" in title_col_dict.keys():
-        gps_col = title_col_dict["GPS 2-2500"]
-        gps_num = ord(gps_col.lower())-97
-        gps = row[gps_num].value
-    else:
-        gps = None
-
-    
-    if "Rate" in title_col_dict.keys():
-        rate_col = title_col_dict["Rate"]
-        rate_num = ord(rate_col.lower())-97
-        rate = row[rate_num].value
-    else:
-        rate = None
-
-    if gps is None or rate is None:
-        return None
-    
-    gps_record = Record(date, "gps", gps, rate)
-    return gps_record
-
-
-def read_gps_record(ws):
-    gps_records = []
-    section_start = find_table_start(ws, ["GPS 2-2500"])
-    if section_start == None:
-        return None
-    section_last_row =  get_last_section_row(ws, section_start)
-    title_col_dict = get_section_title_cols(ws, section_start, section_last_row)
-    for row in ws.iter_rows(min_row=section_start+1, max_col=ws.max_column, max_row=section_last_row):
-        gps = read_gps_line(row, title_col_dict)
-        if gps != None:
-            gps_records.append(gps)
-    return gps_records
-
-
-def read_misc_line(row, title_col_dict, item):
+def read_record_line(row, title_col_dict, item):
     if item in title_col_dict.keys():
         amount_col = title_col_dict[item]
         amount_num = ord(amount_col.lower())-97
@@ -446,13 +390,13 @@ def read_misc_line(row, title_col_dict, item):
     return Record(None, item, amount, rate)
 
 
-def read_misc_record(ws, item):
+def read_record(ws, item):
     section_start = find_table_start(ws, [item])
     if section_start == None:
         return None
     title_col_dict = get_section_title_cols(ws, section_start, section_start+1)
     row = ws[section_start+1]
-    return read_misc_line(row, title_col_dict, item)
+    return read_record_line(row, title_col_dict, item)
 
 
 def read_op_ex(ws):
@@ -476,17 +420,18 @@ def read_sheet(ws):
     else:
         time_records, job_name = None, None
     
-    miles_records = read_miles_record(ws)
-    gps_records = read_gps_record(ws)
+    miles_records = read_record_table(ws, "Miles 2-1704", {"amount":"Miles 2-1704","date":"Date","rate":"Rate"})
+    gps_records = read_record_table(ws, "GPS 2-2500", {"amount":"GPS 2-2500","date":"Date","rate":"Rate"})
+    sokkia_records = read_record_table(ws, "SOKKIA  2-2500", {"amount":"SOKKIA  2-2500","rate":"Rate"})
 
-    misc_record_names = ["SOKKIA  2-2500","Rebar 3-0306","LS/RM not AL","Spikes 3-0306","Lath 3-0306","T-Post 3-0306","RM/LS Caps 3-0306"]
-    misc_records = []
-    for item in misc_record_names:
-        misc = read_misc_record(ws, item)
+    record_names = ["Rebar 3-0306","LS/RM not AL","Spikes 3-0306","Lath 3-0306","T-Post 3-0306","RM/LS Caps 3-0306"]
+    records = []
+    for item in record_names:
+        misc = read_record(ws, item)
         if misc is not None:
-            misc_records.append(misc)
+            records.append(misc)
 
-    daily_record = DailyRecord(job_name, time_records, op_ex, miles_records, gps_records, misc_records)
+    daily_record = DailyRecord(job_name, time_records, op_ex, miles_records, gps_records, sokkia_records, records)
     daily_record.calc_totals()
 
     return daily_record
@@ -506,6 +451,9 @@ def print_sheet(sheet):
     print("\nGPS Record")
     print(sheet.gps_records)
     print(f"Total: {sheet.gps_total}")
+    print("\nSokkia Record")
+    print(sheet.sokkia_records)
+    print(f"Total: {sheet.sokkia_total}")
     print("\nMisc Records")
     print(sheet.misc_records)
     print(f"Total: {sheet.misc_total}")
@@ -577,7 +525,6 @@ def read_config():
 
     with open(config_path, "r") as cfg_file:
         cfg = json.load(cfg_file)
-        print(cfg)
         for opt in default_cfg.keys():
             if opt not in cfg.keys():
                 overwrite = True
@@ -667,21 +614,27 @@ def ask_for_file():
 
 def main():
     cfg = read_config()
-    print(cfg)
 
     file = cfg["filepath"]
     while(True):
         update_config(cfg)
-        sheets = setup_sheets(file)
-
         clear()
         print("LST Invoice Automation")
-        print(f"Reading File: {file}")
 
-        print(f"Select New Spreadsheet: s")
-        print(f"View Spreadsheet Data:  v")
-        print(f"Export To Spreadsheet:  e")
-        print(f"Exit:                  ESC ")
+        if not os.path.exists(file):
+            print(f"File: {file}")
+            print("Does Not Exist! Select new file.")
+            print("")
+            print(f"Select New Spreadsheet: s")
+            print(f"Exit:                  ESC ")
+        else:
+            sheets = setup_sheets(file)
+            print(f"Reading File: {file}")
+            print("")
+            print(f"Select New Spreadsheet: s")
+            print(f"View Spreadsheet Data:  v")
+            print(f"Export To Spreadsheet:  e")
+            print(f"Exit:                  ESC ")
 
         key = readchar.readkey()
 
@@ -696,10 +649,6 @@ def main():
             case readchar.key.ESC:
                 exit()
     
-
-
-    
-
 
 if __name__ == "__main__":
     main()
