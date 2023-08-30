@@ -2,83 +2,100 @@ import openpyxl
 import datetime as dt
 import readchar
 import os
+import stat
 
-class TimeRecord:
+class Record:
     date: dt.date
-    employee: str
-    hours_worked: float
+    amount: float
     rate: float
-    work_type: str
     total: float
-    
-    def __init__(self,date,employee,hours_worked,rate,work_type):
+    name: str
+
+    def __init__(self,date,name,amount,rate) -> None:
         self.date = date
-        self.employee = employee
-        self.hours_worked = hours_worked
+        self.name = name
+        self.amount = amount
         self.rate = rate
+    
+    def __repr__(self) -> str:
+        return f"\n({self.name}: {self.amount},{self.rate})"
+    
+    def __str__(self) -> str:
+        return f"\n({self.name}: {self.amount},{self.rate})"
+
+    def calc_total(self):
+        self.total = self.rate * self.amount
+        return self.total
+
+    def line_str(self):
+        return f"{self.amount}@{self.rate};"
+    
+
+class TimeRecord(Record):
+    employee: str
+    work_type: str
+    
+    def __init__(self,date,employee,amount,rate,work_type):
+        Record.__init__(self, date, "time", amount, rate)
+        self.employee = employee
         self.work_type = work_type
 
     def calc_total(self):
-        self.total = self.hours_worked * self.rate
+        self.total = self.amount * self.rate
         return self.total
-    
-    def line_str(self):
-        return f"{self.hours_worked}@${self.rate}"
 
     def __str__(self) -> str:
-        return f"\n({self.date},{self.employee},{self.hours_worked},{self.rate},{self.work_type})"
+        return f"\n({self.date},{self.employee},{self.amount},{self.rate},{self.work_type})"
     def __repr__(self) -> str:
-        return f"\n({self.date},{self.employee},{self.hours_worked},{self.rate},{self.work_type})"
+        return f"\n({self.date},{self.employee},{self.amount},{self.rate},{self.work_type})"
+
 
 class MilesRecord:
     date: dt.date
-    miles: float
-    miles_rate: float
+    amount: float
+    rate: float
     total: float
 
     def __repr__(self) -> str:
-        return f"\n({self.date},{self.miles},{self.miles_rate})"
+        return f"\n({self.date},{self.amount},{self.rate})"
 
     def __str__(self) -> str:
-        return f"\n({self.date},{self.miles},{self.miles_rate})"
+        return f"\n({self.date},{self.amount},{self.rate})"
 
-    def __init__(self,date,miles,miles_rate):
+    def __init__(self,date,amount,rate):
         self.date = date
-        self.miles = miles
-        self.miles_rate = miles_rate
+        self.amount = amount
+        self.rate = rate
 
     def calc_total(self):
-        self.total = self.miles * self.miles_rate
+        self.total = self.amount * self.rate
         return self.total
     
-    def line_str(self):
-        return f"{self.miles}@{self.miles_rate}"
 
 class GPSRecord:
     date: dt.date
-    gps: float
-    gps_rate: float
+    amount: float
+    rate: float
     total: float
 
-    def __init__(self,date,gps,gps_rate) -> None:
+    def __init__(self,date,amount,rate) -> None:
         self.date = date
-        self.gps = gps
-        self.gps_rate = gps_rate
+        self.amount = amount
+        self.rate = rate
     
     def __repr__(self) -> str:
-        return f"\n({self.date},{self.gps},{self.gps_rate})"
+        return f"\n({self.date},{self.amount},{self.rate})"
     
     def __str__(self) -> str:
-        return f"\n({self.date},{self.gps},{self.gps_rate})"
+        return f"\n({self.date},{self.amount},{self.rate})"
     
     def calc_total(self):
-        self.total = self.gps * self.gps_rate
+        self.total = self.amount * self.rate
         return self.total
 
-    def line_str(self):
-        return f"{self.gps}@{self.gps_rate}"
     
 class MiscRecord:
+    date: dt.date
     amount: float
     rate: float
     total: float
@@ -100,7 +117,7 @@ class MiscRecord:
         return self.total
 
     def line_str(self):
-        return f"{self.amount}@{self.rate}"
+        return f"{self.amount}@{self.rate};"
     
 
 #Not really a daily record as each line has its own date.
@@ -180,6 +197,37 @@ class DailyRecord:
 
         self.record_total = time_total + op_ex_total + miles_total + gps_total + misc_total
         return self.record_total
+    
+    def concat_line_strs(self, records):
+            rate_dict = dict()
+            
+            if records is not None:
+                for record in records:
+                    if record.rate not in rate_dict.keys():
+                        rate_dict[record.rate] = 0
+                    
+                    rate_dict[record.rate] += record.amount
+            
+            line_str = ""
+            for rate in rate_dict.keys():
+                hours = rate_dict[rate]
+                line_str += f"{hours}@{rate};"
+
+            return line_str
+    
+    def time_line_strs(self):
+        return self.concat_line_strs(self.time_records)
+    
+    def miles_line_strs(self):
+        return self.concat_line_strs(self.miles_records)
+    
+    def gps_line_strs(self):
+        return self.concat_line_strs(self.gps_records)
+    
+    
+
+    
+
 
 class Heading:
     name: str
@@ -590,13 +638,75 @@ def intro_screen(file, sheets):
         case "e":
             export_sheets_to_excel(sheets)
 
+
 def export_sheets_to_excel(sheets):
-    pass
+    output_dir = "./output"
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+        os.chmod(output_dir, stat.S_IXUSR | stat.S_IWUSR | stat.S_IRUSR)
+    
+    filepath = os.path.join(output_dir, "sheet.xlsx")
+    wb = openpyxl.Workbook()
+
+    output_sheet = wb.active
+
+    row_i = 1
+    for sheet in sheets:
+
+        #Job Name
+        cell = output_sheet.cell(row=row_i, column=1)
+        cell.value = sheet.job_name
+        row_i += 1
+
+        #Time
+        time_line_str = sheet.time_line_strs()
+        if len(time_line_str) > 0:
+            cell = output_sheet.cell(row=row_i, column=1)  
+            cell.value = "Time:"
+            cell = output_sheet.cell(row=row_i, column=2)      
+            cell.value = time_line_str
+            row_i += 1
+
+        #Miles
+        miles_line_str = sheet.miles_line_strs()
+        if len(miles_line_str) > 0:
+            cell = output_sheet.cell(row=row_i, column=1)  
+            cell.value = "Miles:"
+            cell = output_sheet.cell(row=row_i, column=2)      
+            cell.value = miles_line_str
+            row_i += 1
+
+        #GPS
+        gps_line_str = sheet.gps_line_strs()
+        if len(gps_line_str) > 0:
+            cell = output_sheet.cell(row=row_i, column=1)  
+            cell.value = "GPS:"
+            cell = output_sheet.cell(row=row_i, column=2)      
+            cell.value = gps_line_str
+            row_i += 1
+
+        #Misc
+        for misc in sheet.misc_records:
+            line_str = misc.line_str()
+            if len(line_str) > 0:
+                cell = output_sheet.cell(row=row_i, column=1)  
+                cell.value = misc.name
+                cell = output_sheet.cell(row=row_i, column=2)      
+                cell.value = line_str
+                row_i += 1
+
+        #Whitespace
+        row_i += 1
+
+
+    wb.save(filepath)
+
 
 
 def main():
     file, sheets = setup_sheets()
-    intro_screen(file, sheets)
+    # intro_screen(file, sheets)
+    export_sheets_to_excel(sheets)
     
 
 
