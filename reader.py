@@ -3,6 +3,9 @@ import datetime as dt
 import readchar
 import os
 import stat
+import tkinter as tk
+from tkinter import filedialog
+import json
 
 class Record:
     date: dt.date
@@ -516,18 +519,23 @@ def clear():
 def display_sheets(sheets):
     cur_sheet = 0
     is_printed = False
+    running = True
 
-    while(True):
+    while(running):
         clear()
         print_sheet(sheets[cur_sheet])
         print(f"{cur_sheet+1}/{len(sheets)}")
+        print("Back: ESC")
 
         key = readchar.readkey()
 
-        if key == readchar.key.RIGHT:
-            cur_sheet += 1
-        if key == readchar.key.LEFT:
-            cur_sheet -= 1
+        match key:
+            case readchar.key.RIGHT:
+                cur_sheet += 1
+            case readchar.key.LEFT:
+                cur_sheet -= 1
+            case readchar.key.ESC:
+                running = False
         
         if cur_sheet > len(sheets)-1:
             cur_sheet = 0
@@ -536,12 +544,10 @@ def display_sheets(sheets):
         if cur_sheet < 0:
             cur_sheet = len(sheets)-1
             is_printed = False
+        
 
 
-def setup_sheets():
-    #Dictionary of sheet data frames
-    file = "sheets/County Time and Supplies Record.xlsx"
-
+def setup_sheets(file):
     wb = openpyxl.load_workbook(file)
 
     sheets = []
@@ -550,27 +556,50 @@ def setup_sheets():
         sheet = read_sheet(ws)
         sheets.append(sheet)
     
-    return file, sheets
+    return sheets
 
-def intro_screen(file, sheets):
-    clear()
-    print("LST Invoice Automation")
-    print(f"Reading File: {file}")
+def read_config():
+    config_path = "./config.json"
+    default_cfg = {
+        "filepath": "./sheets/County Time and Supplies Record.xlsx",
+        "output_dir": "./output",
+        "alias": []
+    }
 
-    print(f"View Spreadsheet Data: v")
-    print(f"Export To Spreadsheet: e")
+    if not os.path.exists(config_path):
+        with open(config_path, "w") as outfile:
+            json_obj = json.dumps(default_cfg, indent=4)
+            outfile.write(json_obj)
+            outfile.close()
+            return default_cfg
 
-    key = readchar.readkey()
+    overwrite = False
 
-    match key:
-        case "v":
-            display_sheets(sheets)
-        case "e":
-            export_sheets_to_excel(sheets)
+    with open(config_path, "r") as cfg_file:
+        cfg = json.load(cfg_file)
+        print(cfg)
+        for opt in default_cfg.keys():
+            if opt not in cfg.keys():
+                overwrite = True
+                cfg[opt] = default_cfg[opt]
+        cfg_file.close
+    
+    if overwrite:
+        with open(config_path, "w+") as outfile:
+
+            json_obj = json.dumps(cfg)
+            outfile.write(json_obj)
+        
+    return cfg
+    
+
+def update_config(cfg):
+    config_path = "./config.json"
+    with open(config_path, "w") as file:
+        file.write(json.dumps(cfg, indent=4))
 
 
-def export_sheets_to_excel(sheets):
-    output_dir = "./output"
+def export_sheets_to_excel(sheets, output_dir):
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
         os.chmod(output_dir, stat.S_IXUSR | stat.S_IWUSR | stat.S_IRUSR)
@@ -632,11 +661,40 @@ def export_sheets_to_excel(sheets):
     wb.save(filepath)
 
 
+def ask_for_file():
+    return filedialog.askopenfilename()
+
 
 def main():
-    file, sheets = setup_sheets()
-    # intro_screen(file, sheets)
-    export_sheets_to_excel(sheets)
+    cfg = read_config()
+    print(cfg)
+
+    file = cfg["filepath"]
+    while(True):
+        update_config(cfg)
+        sheets = setup_sheets(file)
+
+        clear()
+        print("LST Invoice Automation")
+        print(f"Reading File: {file}")
+
+        print(f"Select New Spreadsheet: s")
+        print(f"View Spreadsheet Data:  v")
+        print(f"Export To Spreadsheet:  e")
+        print(f"Exit:                  ESC ")
+
+        key = readchar.readkey()
+
+        match key:
+            case "v":
+                display_sheets(sheets)
+            case "e":
+                export_sheets_to_excel(sheets)
+            case "s":
+                file = ask_for_file()
+                cfg["filepath"] = file
+            case readchar.key.ESC:
+                exit()
     
 
 
