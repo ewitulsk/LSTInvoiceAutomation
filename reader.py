@@ -361,7 +361,7 @@ def read_county_record(ws):
 #{'amount'='GPS 2-5000', 'actual'='wierd'}
 #
 #
-def read_table_record_line(row, title_col_dict, name, alias_dict):
+def read_table_record_line(row, title_col_dict, section_name, alias_dict):
     data_dict = dict()
     for word in title_col_dict.keys():
         if word in title_col_dict.keys():
@@ -374,7 +374,7 @@ def read_table_record_line(row, title_col_dict, name, alias_dict):
 
     for key in alias_dict.keys():
         data_key = alias_dict[key]
-        if key not in data_dict.keys():
+        if key not in data_dict.keys() and data_key in data_dict.keys():
             data_dict[key] = data_dict[data_key]
         
     if "amount" not in data_dict.keys():
@@ -383,13 +383,15 @@ def read_table_record_line(row, title_col_dict, name, alias_dict):
         data_dict["rate"] = None
     if "date" not in data_dict.keys():
         data_dict["date"] = None
+    if "name" not in data_dict.keys():
+        data_dict["name"] = section_name
     
     date = data_dict["date"]
     amount = data_dict["amount"]
     rate = data_dict["rate"]
+    name = data_dict["name"]
     if amount is None or rate is None:
-        return None
-    
+        return None        
     return Record(date, name, amount, rate)
 
 
@@ -469,9 +471,8 @@ def read_sheet(ws):
         if monuments is not None:
             records.append(monuments)
     
-    office_supply_records = read_record_table(ws, "Office Supplies 3-0101", {"amount":"Office Supplies 3-0101","rate":"Rate"})
-    dues_records = read_record_table(ws, "Dues/Sub/Reg 2-1751", {"amount":"Dues/Sub/Reg 2-1751","rate":"Rate"})
-
+    office_supply_records = read_record_table(ws, "Office Supplies 3-0101", {"amount":"Office Supplies 3-0101","rate":"Rate","name":"Name"})
+    dues_records = read_record_table(ws, "Dues/Sub/Reg 2-1751", {"amount":"Dues/Sub/Reg 2-1751","rate":"Rate","name":"Name"})
     daily_record = DailyRecord(job_name, time_records, op_ex, miles_records, gps_records, sokkia_records, records, office_supply_records, dues_records)
     daily_record.calc_totals()
 
@@ -659,12 +660,16 @@ def export_sheets_to_excel(sheets, outfile):
             cell.value = "2-1751"
             cell = output_sheet.cell(row=row_i, column=2)  
             cell.value = "DUES, SUBSCRIPTION, REGIS, TRAINING"
-            cell = output_sheet.cell(row=row_i, column=3)      
-            cell.value = dues_line_str
-            cell = output_sheet.cell(row=row_i, column=4)    
-            dues_total += sheet.dues_total  
+            cell = output_sheet.cell(row=row_i, column=4)
             cell.value = f'${"{:.2f}".format(sheet.dues_total)}'
             row_i += 1
+            for due in sheet.dues_records:
+                cell = output_sheet.cell(row=row_i, column=2)  
+                cell.value = due.name
+                cell = output_sheet.cell(row=row_i, column=3)      
+                cell.value = due.line_str()
+                row_i += 1
+            dues_total += sheet.dues_total  
 
         #Machine Hire (GPS & Sokkia)
         machine_line_str = sheet.machine_line_strs()
@@ -673,11 +678,21 @@ def export_sheets_to_excel(sheets, outfile):
             cell.value = "2-2500"
             cell = output_sheet.cell(row=row_i, column=2)  
             cell.value = "CONTRACTUAL SERVICE- MACHINE HIRE"
-            cell = output_sheet.cell(row=row_i, column=3)      
-            cell.value = machine_line_str
             cell = output_sheet.cell(row=row_i, column=4)
             machine_total += sheet.gps_total + sheet.sokkia_total
             cell.value = f'${"{:.2f}".format(sheet.gps_total + sheet.sokkia_total)}'
+            if sheet.sokkia_total > 0:
+                row_i += 1
+                cell = output_sheet.cell(row=row_i, column=2)  
+                cell.value = "Sokkia"
+                cell = output_sheet.cell(row=row_i, column=3)  
+                cell.value = f"1@{sheet.sokkia_total}"
+            if sheet.gps_total > 0:
+                row_i += 1
+                cell = output_sheet.cell(row=row_i, column=2)  
+                cell.value = "GPS"
+                cell = output_sheet.cell(row=row_i, column=3)  
+                cell.value = f"1@{sheet.gps_total}"
             row_i += 1
 
         #Overhead/Operating Expenses
@@ -700,12 +715,18 @@ def export_sheets_to_excel(sheets, outfile):
             cell.value = "3-0101"
             cell = output_sheet.cell(row=row_i, column=2)  
             cell.value = "OFFICE SUPPLIES"
-            cell = output_sheet.cell(row=row_i, column=3)      
-            cell.value = office_supply_line_str
+            # cell = output_sheet.cell(row=row_i, column=3)      
+            # cell.value = office_supply_line_str
             cell = output_sheet.cell(row=row_i, column=4)      
             office_total += sheet.office_supply_total
             cell.value = f'${"{:.2f}".format(sheet.office_supply_total)}'
             row_i += 1
+            for office in sheet.office_supply_records:
+                cell = output_sheet.cell(row=row_i, column=2)  
+                cell.value = office.name
+                cell = output_sheet.cell(row=row_i, column=3)      
+                cell.value = office.line_str()
+                row_i += 1
 
         #Survey Monuments
         monuments_line_str = sheet.monuments_line_strs()
@@ -714,12 +735,18 @@ def export_sheets_to_excel(sheets, outfile):
             cell.value = "3-0306"
             cell = output_sheet.cell(row=row_i, column=2)  
             cell.value = "SURVEY MONUMENTS"
-            cell = output_sheet.cell(row=row_i, column=3)      
-            cell.value = monuments_line_str
+            # cell = output_sheet.cell(row=row_i, column=3)      
+            # cell.value = monuments_line_str
             cell = output_sheet.cell(row=row_i, column=4) 
             monuments_total += sheet.monuments_total      
             cell.value = f'${"{:.2f}".format(sheet.monuments_total)}'
             row_i += 1
+        for monument in sheet.monuments_records:
+                cell = output_sheet.cell(row=row_i, column=2)  
+                cell.value = monument.name.split(" ")[0]
+                cell = output_sheet.cell(row=row_i, column=3)      
+                cell.value = monument.line_str()
+                row_i += 1
 
         #Job Total
         cell = output_sheet.cell(row=row_i, column=1)  
