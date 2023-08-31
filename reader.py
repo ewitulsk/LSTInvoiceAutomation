@@ -554,19 +554,23 @@ def setup_sheets(file):
     return sheets
 
 def read_config():
-    config_path = "./config.json"
+    app_data = os.getenv('USERPROFILE')
+    config_dir = os.path.join(app_data, "My Documents\LSTInvoiceAuto")
+    if not os.path.exists(config_dir):
+        os.mkdir(config_dir)
+
+    config_path = os.path.join(config_dir, "config.json")
     default_cfg = {
-        "filepath": "./sheets/County Time and Supplies Record.xlsx",
-        "output_dir": "./output",
+        "filepath": "",
         "alias": []
     }
 
     if not os.path.exists(config_path):
-        with open(config_path, "w") as outfile:
+        with open(config_path, "w+") as outfile:
             json_obj = json.dumps(default_cfg, indent=4)
             outfile.write(json_obj)
             outfile.close()
-            return default_cfg
+            return default_cfg, config_path
 
     overwrite = False
 
@@ -584,12 +588,11 @@ def read_config():
             json_obj = json.dumps(cfg)
             outfile.write(json_obj)
         
-    return cfg
+    return cfg, config_path
     
 
-def update_config(cfg):
-    config_path = "./config.json"
-    with open(config_path, "w") as file:
+def update_config(cfg, config_path):
+    with open(config_path, "w+") as file:
         file.write(json.dumps(cfg, indent=4))
 
 
@@ -598,12 +601,8 @@ def get_outsheet_name(infile_name):
     return f"LST_Invoice_{date}_{infile_name}.xlsx"
 
 
-def export_sheets_to_excel(sheets, output_dir, infile_name):
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-        os.chmod(output_dir, stat.S_IXUSR | stat.S_IWUSR | stat.S_IRUSR)
-    
-    filepath = os.path.join(output_dir, get_outsheet_name(infile_name))
+def export_sheets_to_excel(sheets, outfile):
+    filepath = outfile
     wb = openpyxl.Workbook()
 
     output_sheet = wb.active
@@ -807,11 +806,11 @@ def ask_for_file():
 
 
 def main():
-    cfg = read_config()
+    cfg, config_path = read_config()
 
     file = cfg["filepath"]
     while(True):
-        update_config(cfg)
+        update_config(cfg, config_path)
         clear()
         print("LST Invoice Automation")
 
@@ -836,9 +835,8 @@ def main():
             case "v":
                 display_sheets(sheets)
             case "e":
-                output_dir = cfg["output_dir"]
-                infile_name = os.path.basename(file)
-                export_sheets_to_excel(sheets, output_dir, infile_name)
+                outfile = filedialog.asksaveasfilename(defaultextension=".xlsx")
+                export_sheets_to_excel(sheets, outfile)
             case "s":
                 file = ask_for_file()
                 cfg["filepath"] = file
