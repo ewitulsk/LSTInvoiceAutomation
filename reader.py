@@ -6,7 +6,6 @@ import stat
 import tkinter as tk
 from tkinter import filedialog
 import json
-from pypdf import PdfWriter
 
 class Record:
     date: dt.date
@@ -132,7 +131,7 @@ class DailyRecord:
         else:
             self.gps_total = 0
 
-        #GPS Records
+        #Sokkia Records
         sokkia_total = 0
         if self.sokkia_records is not None:
             for record in self.sokkia_records:
@@ -169,7 +168,7 @@ class DailyRecord:
         else:
             self.dues_total = 0
 
-        self.record_total = time_total + op_ex_total + miles_total + gps_total + monuments_total
+        self.record_total = time_total + op_ex_total + miles_total + gps_total + sokkia_total + monuments_total + office_total + dues_total
         return self.record_total
     
     def concat_line_strs(self, records):
@@ -263,11 +262,7 @@ def get_section_title_cols(ws, section_start_row, section_end_row):
         if cell.value == None:
             empty_names.append(cell.column_letter)
         else:
-            title_col_dict[cell.value] = cell.column_letter
-    # if "Date" not in title_col_dict.keys() and "date" not in title_col_dict.keys():
-    #     date_col = find_time_record_date_col(ws, empty_names, section_start_row, section_end_row)
-    #     title_col_dict["Date"] = date_col
-    #     title_col_dict["date"] = date_col
+            title_col_dict[cell.value.strip()] = cell.column_letter
     return title_col_dict
 
 #Key words are words that are likely to indicate that tables start
@@ -598,15 +593,29 @@ def update_config(cfg):
         file.write(json.dumps(cfg, indent=4))
 
 
-def export_sheets_to_excel(sheets, output_dir):
+def get_outsheet_name(infile_name):
+    date = dt.date.today()
+    return f"LST_Invoice_{date}_{infile_name}.xlsx"
+
+
+def export_sheets_to_excel(sheets, output_dir, infile_name):
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
         os.chmod(output_dir, stat.S_IXUSR | stat.S_IWUSR | stat.S_IRUSR)
     
-    filepath = os.path.join(output_dir, "sheet.xlsx")
+    filepath = os.path.join(output_dir, get_outsheet_name(infile_name))
     wb = openpyxl.Workbook()
 
     output_sheet = wb.active
+    
+    total = 0
+    time_total = 0
+    miles_total = 0
+    dues_total = 0
+    machine_total = 0
+    opex_total = 0
+    office_total = 0
+    monuments_total = 0
 
     row_i = 1
     for sheet in sheets:
@@ -625,7 +634,8 @@ def export_sheets_to_excel(sheets, output_dir):
             cell.value = "SALARY CONTRACT HOURLY"
             cell = output_sheet.cell(row=row_i, column=3)      
             cell.value = time_line_str
-            cell = output_sheet.cell(row=row_i, column=4)      
+            cell = output_sheet.cell(row=row_i, column=4)  
+            time_total += sheet.time_total
             cell.value = f'${"{:.2f}".format(sheet.time_total)}'
             row_i += 1
 
@@ -638,7 +648,8 @@ def export_sheets_to_excel(sheets, output_dir):
             cell.value = "MILEAGE ALLOWANCE"
             cell = output_sheet.cell(row=row_i, column=3)      
             cell.value = miles_line_str
-            cell = output_sheet.cell(row=row_i, column=4)      
+            cell = output_sheet.cell(row=row_i, column=4)     
+            miles_total += sheet.miles_total 
             cell.value = f'${"{:.2f}".format(sheet.miles_total)}'
             row_i += 1
 
@@ -651,7 +662,8 @@ def export_sheets_to_excel(sheets, output_dir):
             cell.value = "DUES, SUBSCRIPTION, REGIS, TRAINING"
             cell = output_sheet.cell(row=row_i, column=3)      
             cell.value = dues_line_str
-            cell = output_sheet.cell(row=row_i, column=4)      
+            cell = output_sheet.cell(row=row_i, column=4)    
+            dues_total += sheet.dues_total  
             cell.value = f'${"{:.2f}".format(sheet.dues_total)}'
             row_i += 1
 
@@ -664,7 +676,8 @@ def export_sheets_to_excel(sheets, output_dir):
             cell.value = "CONTRACTUAL SERVICE- MACHINE HIRE"
             cell = output_sheet.cell(row=row_i, column=3)      
             cell.value = machine_line_str
-            cell = output_sheet.cell(row=row_i, column=4)      
+            cell = output_sheet.cell(row=row_i, column=4)
+            machine_total += sheet.gps_total + sheet.sokkia_total
             cell.value = f'${"{:.2f}".format(sheet.gps_total + sheet.sokkia_total)}'
             row_i += 1
 
@@ -677,6 +690,7 @@ def export_sheets_to_excel(sheets, output_dir):
             cell = output_sheet.cell(row=row_i, column=3)      
             cell.value = f"{sheet.time_total}@{sheet.op_ex}"
             cell = output_sheet.cell(row=row_i, column=4)      
+            opex_total += sheet.op_ex_total
             cell.value = f'${"{:.2f}".format(sheet.op_ex_total)}'
             row_i += 1
 
@@ -690,6 +704,7 @@ def export_sheets_to_excel(sheets, output_dir):
             cell = output_sheet.cell(row=row_i, column=3)      
             cell.value = office_supply_line_str
             cell = output_sheet.cell(row=row_i, column=4)      
+            office_total += sheet.office_supply_total
             cell.value = f'${"{:.2f}".format(sheet.office_supply_total)}'
             row_i += 1
 
@@ -702,23 +717,90 @@ def export_sheets_to_excel(sheets, output_dir):
             cell.value = "SURVEY MONUMENTS"
             cell = output_sheet.cell(row=row_i, column=3)      
             cell.value = monuments_line_str
-            cell = output_sheet.cell(row=row_i, column=4)      
+            cell = output_sheet.cell(row=row_i, column=4) 
+            monuments_total += sheet.monuments_total      
             cell.value = f'${"{:.2f}".format(sheet.monuments_total)}'
             row_i += 1
+
+        #Job Total
+        cell = output_sheet.cell(row=row_i, column=1)  
+        cell.value = "Job Total"
+        cell = output_sheet.cell(row=row_i, column=4)
+        sheet_total =   sheet.calc_totals()
+        total += sheet_total
+        cell.value = f'${"{:.2f}".format(sheet_total)}'
+        row_i += 1
 
         #Whitespace
         row_i += 1
 
+    row_i += 1
+    
+    #Final Line Item Totals
+    cell = output_sheet.cell(row=row_i, column=1)  
+    cell.value = "1-0202"
+    cell = output_sheet.cell(row=row_i, column=2)  
+    cell.value = "SALARY CONTRACT HOURLY"
+    cell = output_sheet.cell(row=row_i, column=3)  
+    cell.value = f'${"{:.2f}".format(time_total)}'
+    row_i += 1
+
+    cell = output_sheet.cell(row=row_i, column=1)  
+    cell.value = "2-1704"
+    cell = output_sheet.cell(row=row_i, column=2)  
+    cell.value = "MILEAGE ALLOWANCE"
+    cell = output_sheet.cell(row=row_i, column=3)  
+    cell.value = f'${"{:.2f}".format(miles_total)}'
+    row_i += 1
+
+    cell = output_sheet.cell(row=row_i, column=1)  
+    cell.value = "2-1751"
+    cell = output_sheet.cell(row=row_i, column=2)  
+    cell.value = "DUES, SUBSCRIPTION, REGIS, TRAINING"
+    cell = output_sheet.cell(row=row_i, column=3)  
+    cell.value = f'${"{:.2f}".format(dues_total)}'
+    row_i += 1
+
+    cell = output_sheet.cell(row=row_i, column=1)  
+    cell.value = "2-2500"
+    cell = output_sheet.cell(row=row_i, column=2)  
+    cell.value = "CONTRACTUAL SERVICE- MACHINE HIRE"
+    cell = output_sheet.cell(row=row_i, column=3)  
+    cell.value = f'${"{:.2f}".format(machine_total)}'
+    row_i += 1
+
+    cell = output_sheet.cell(row=row_i, column=1)  
+    cell.value = "2-9900"
+    cell = output_sheet.cell(row=row_i, column=2)  
+    cell.value = "MISC OPERATING EXP/OVERHEAD COSTS"
+    cell = output_sheet.cell(row=row_i, column=3)  
+    cell.value = f'${"{:.2f}".format(opex_total)}'
+    row_i += 1
+
+    cell = output_sheet.cell(row=row_i, column=1)  
+    cell.value = "3-0101"
+    cell = output_sheet.cell(row=row_i, column=2)  
+    cell.value = "OFFICE SUPPLIES"
+    cell = output_sheet.cell(row=row_i, column=3)  
+    cell.value = f'${"{:.2f}".format(office_total)}'
+    row_i += 1
+
+    cell = output_sheet.cell(row=row_i, column=1)  
+    cell.value = "3-0306"
+    cell = output_sheet.cell(row=row_i, column=2)  
+    cell.value = "SURVEY MONUMENTS"
+    cell = output_sheet.cell(row=row_i, column=3)  
+    cell.value = f'${"{:.2f}".format(monuments_total)}'
+    row_i += 1
+
+    cell = output_sheet.cell(row=row_i, column=2)  
+    cell.value = "Total"
+    cell = output_sheet.cell(row=row_i, column=3)  
+    cell.value = f'${"{:.2f}".format(total)}'
+    row_i += 1
+        
     wb.save(filepath)
-
-
-def export_to_pdf(sheets, output_dir):
-    pdf_writer = PdfWriter()
-    pdf_writer.add_blank_page(width=8.5*72, height=11*72)
-
-    output_path = os.path.join(output_dir, "paper.pdf")
-    pdf_writer.write(output_path)
-
+  
 
 def ask_for_file():
     return filedialog.askopenfilename()
@@ -755,8 +837,8 @@ def main():
                 display_sheets(sheets)
             case "e":
                 output_dir = cfg["output_dir"]
-                # export_sheets_to_excel(sheets, output_dir)
-                export_to_pdf(sheets, output_dir)
+                infile_name = os.path.basename(file)
+                export_sheets_to_excel(sheets, output_dir, infile_name)
             case "s":
                 file = ask_for_file()
                 cfg["filepath"] = file
